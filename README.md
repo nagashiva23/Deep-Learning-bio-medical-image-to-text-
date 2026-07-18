@@ -6,7 +6,8 @@
 
 This repository contains the first stage of a biomedical image-to-text project: understanding and validating the image-caption dataset before training a caption-generation model. The current implementation focuses on exploratory data analysis (EDA) of a local RoCoV2 dataset.
 
-> **Project status:** EDA in progress. Model training and evaluation are not yet implemented in this repository.
+> **Project status:** EDA in progress. Model training and evaluation is the next phase
+
 
 ## Highlights
 
