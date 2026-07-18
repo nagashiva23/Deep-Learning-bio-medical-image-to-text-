@@ -94,9 +94,45 @@ Run the notebook cells from top to bottom. The first cell checks that the config
 
 - Python 3
 - Jupyter Notebook
-- pandas and NumPy
+- PyTorch
+- NumPy
 - Pillow
-- Matplotlib
+- Custom Multi-Scale Gated Captioning Network (MGCN)
+
+## Proposed training model
+
+The project uses a custom end-to-end **Multi-Scale Gated Captioning Network (MGCN)** rather than a directly reused image-captioning architecture.
+
+1. **Multi-Scale Gated Encoder:** three dilated convolution branches extract local, intermediate, and broad visual patterns. A learned softmax gate combines the three feature maps for each image.
+2. **Visual Evidence Memory Decoder:** word generation uses spatial attention and a separate image-evidence memory, which preserves attended visual information across caption tokens.
+3. **Biomedical Term-Aware Focal Loss:** a weighted focal loss increases learning signal for difficult and comparatively rare biomedical terms. An attention-coverage term discourages repeatedly focusing on one image region.
+
+The source code is in `src/`, with the full training entry point in `train.py`.
+
+### Train MGCN
+
+Install the dependencies and run a small smoke test first:
+
+```bash
+python -m pip install -r requirements.txt
+python train.py \
+  --data-root /path/to/rocov2 \
+  --epochs 1 \
+  --train-limit 256 \
+  --valid-limit 128
+```
+
+Then begin full training:
+
+```bash
+python train.py \
+  --data-root /path/to/rocov2 \
+  --epochs 20 \
+  --batch-size 16 \
+  --output-dir artifacts/mgcn_full
+```
+
+The trainer saves `best.pt`, `last.pt`, and `vocabulary.json` in the chosen output directory. It uses Apple Metal (MPS) when available, then CUDA, then CPU.
 
 ## Roadmap
 
