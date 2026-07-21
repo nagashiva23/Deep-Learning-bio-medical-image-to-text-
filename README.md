@@ -134,6 +134,16 @@ python train.py \
 
 The trainer saves `best.pt`, `last.pt`, and `vocabulary.json` in the chosen output directory. It uses Apple Metal (MPS) when available, then CUDA, then CPU.
 
+### Compare candidate models
+
+Use `train_models.py` to run the controlled experiments described in [MODEL_SELECTION.md](MODEL_SELECTION.md). Start with the custom baseline, then MGCN with ordinary cross-entropy, then full MGCN:
+
+```bash
+python train_models.py --experiment baseline --data-root /path/to/rocov2 --epochs 1 --train-limit 256 --valid-limit 128
+python train_models.py --experiment mgcn_ce --data-root /path/to/rocov2 --epochs 1 --train-limit 256 --valid-limit 128
+python train_models.py --experiment mgcn --data-root /path/to/rocov2 --epochs 1 --train-limit 256 --valid-limit 128
+```
+
 ## Roadmap
 
 - [x] Dataset structure inspection

@@ -101,3 +101,63 @@ class MGCN(nn.Module):
         features, scale_weights = self.encoder(images)
         logits, attention = self.decoder(features, captions)
         return logits, attention, scale_weights
+
+
+class SingleScaleEncoder(nn.Module):
+    """A custom single-scale encoder used only as the controlled baseline."""
+    def __init__(self, visual_dim: int = 256):
+        super().__init__()
+        self.features = nn.Sequential(
+            ConvNormAct(3, 64, stride=2),
+            ConvNormAct(64, 128, stride=2),
+            ConvNormAct(128, visual_dim, stride=2),
+            ConvNormAct(visual_dim, visual_dim),
+        )
+
+    def forward(self, images: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        features = self.features(images).flatten(2).transpose(1, 2)
+        scale_weights = torch.ones(images.size(0), 1, device=images.device)
+        return features, scale_weights
+
+
+class SimpleAttentionDecoder(nn.Module):
+    """Attention-only caption decoder without the proposed evidence-memory module."""
+    def __init__(self, vocab_size: int, visual_dim: int = 256, embedding_dim: int = 256, hidden_dim: int = 512, pad_id: int = 0):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.embedding = nn.Embedding(vocab_size, embedding_dim, padding_idx=pad_id)
+        self.query = nn.Linear(embedding_dim + hidden_dim, hidden_dim)
+        self.feature_projection = nn.Linear(visual_dim, hidden_dim, bias=False)
+        self.attention_projection = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.attention_score = nn.Linear(hidden_dim, 1, bias=False)
+        self.state = nn.Linear(embedding_dim + visual_dim + hidden_dim, hidden_dim)
+        self.output = nn.Linear(hidden_dim + visual_dim, vocab_size)
+
+    def forward(self, features: torch.Tensor, captions: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        batch_size = features.size(0)
+        hidden = features.new_zeros(batch_size, self.hidden_dim)
+        projected_features = self.feature_projection(features)
+        logits, attentions = [], []
+        for step in range(captions.size(1) - 1):
+            embedding = self.embedding(captions[:, step])
+            query = torch.tanh(self.query(torch.cat([embedding, hidden], dim=1)))
+            energy = self.attention_score(torch.tanh(projected_features + self.attention_projection(query).unsqueeze(1))).squeeze(-1)
+            attention = F.softmax(energy, dim=1)
+            context = torch.bmm(attention.unsqueeze(1), features).squeeze(1)
+            hidden = torch.tanh(self.state(torch.cat([embedding, context, hidden], dim=1)))
+            logits.append(self.output(torch.cat([hidden, context], dim=1)))
+            attentions.append(attention)
+        return torch.stack(logits, dim=1), torch.stack(attentions, dim=1)
+
+
+class SingleScaleCaptioner(nn.Module):
+    """Experiment E0: custom baseline without MGCN's gated encoder or evidence memory."""
+    def __init__(self, vocab_size: int, visual_dim: int = 256, embedding_dim: int = 256, hidden_dim: int = 512, pad_id: int = 0):
+        super().__init__()
+        self.encoder = SingleScaleEncoder(visual_dim)
+        self.decoder = SimpleAttentionDecoder(vocab_size, visual_dim, embedding_dim, hidden_dim, pad_id)
+
+    def forward(self, images: torch.Tensor, captions: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        features, scale_weights = self.encoder(images)
+        logits, attention = self.decoder(features, captions)
+        return logits, attention, scale_weights
